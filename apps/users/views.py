@@ -1,16 +1,20 @@
 from django.contrib.auth.models import User
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from apps.users.serializers import UserSerializer, UserListSerializer
+from apps.users.serializers import (
+    RegisterUserSerializer,
+    LoginUserSerializer,
+    UserListSerializer,
+)
 
 
 class GetAllUsersView(GenericAPIView):
     serializer_class = UserListSerializer
     permission_classes = (IsAuthenticated,)
-    authentication_classes = ()
 
     def get(self, request: Request) -> Response:
         users = User.objects.all()
@@ -18,7 +22,7 @@ class GetAllUsersView(GenericAPIView):
 
 
 class RegisterUserView(GenericAPIView):
-    serializer_class = UserSerializer
+    serializer_class = RegisterUserSerializer
     permission_classes = (AllowAny,)
     authentication_classes = ()
 
@@ -26,14 +30,39 @@ class RegisterUserView(GenericAPIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Create user
-        user = User.objects.create_user(**serializer.validated_data)
+        data = serializer.validated_data.copy()
+        data["username"] = data["email"]
 
-        # Generate tokens using the same logic as TokenObtainPairView
+        if User.objects.filter(username=data["username"]).exists():
+            raise ValidationError({"email": "A user with this email already exists."})
+
+        user = User.objects.create_user(**data)
+
         token_serializer = TokenObtainPairSerializer(
             data={
-                "username": user.username,
-                "password": request.data["password"],  # must come from raw request
+                "email": user.email,
+                "username": user.email,
+                "password": request.data["password"],
+            }
+        )
+        token_serializer.is_valid(raise_exception=True)
+
+        return Response(token_serializer.validated_data)
+
+
+class LoginUserView(GenericAPIView):
+    serializer_class = LoginUserSerializer
+    permission_classes = (AllowAny,)
+
+    def post(self, request: Request) -> Response:
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        token_serializer = TokenObtainPairSerializer(
+            data={
+                "email": serializer.data["email"],
+                "username": serializer.data["email"],
+                "password": request.data["password"],
             }
         )
         token_serializer.is_valid(raise_exception=True)

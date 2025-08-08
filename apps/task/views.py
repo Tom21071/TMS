@@ -1,11 +1,12 @@
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.utils import extend_schema, OpenApiParameter, extend_schema_view
 from rest_framework.generics import (
     ListAPIView,
     RetrieveAPIView,
     DestroyAPIView,
     CreateAPIView,
+    ListCreateAPIView,
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -20,28 +21,32 @@ from apps.task.serializers import (
 )
 
 
-@extend_schema(
-    parameters=[
-        OpenApiParameter(
-            name="status",
-            description="Filter by Status",
-            required=False,
-            type=str,
-            enum=[choice[0] for choice in Task.Status.choices],
-            location=OpenApiParameter.QUERY,
-        ),
-        OpenApiParameter(
-            name="user_id",
-            description="Filter by User ID",
-            required=False,
-            type=int,
-            location=OpenApiParameter.QUERY,
-        ),
-    ],
-    responses=TaskSerializer(many=True),
-    tags=["Tasks"],
+@extend_schema_view(
+    get=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="status",
+                description="Filter by Status",
+                required=False,
+                type=str,
+                enum=[choice[0] for choice in Task.Status.choices],
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name="user_id",
+                description="Filter by User ID",
+                required=False,
+                type=int,
+                location=OpenApiParameter.QUERY,
+            ),
+        ],
+        responses=TaskSerializer(many=True),
+        tags=["tasks"],
+    ),
+    post=extend_schema(tags=["tasks"]),
 )
-class GetAllTasksView(ListAPIView):
+class TaskListCreateView(ListCreateAPIView):
+    permission_classes = (IsAuthenticated,)
     serializer_class = TaskSerializer
 
     def get_queryset(self):
@@ -56,26 +61,37 @@ class GetAllTasksView(ListAPIView):
 
         return queryset
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        task = Task.objects.create(
+            title=serializer.validated_data["title"],
+            description=serializer.validated_data.get("description"),
+            status=Task.Status.OPEN,
+            user=request.user,
+            is_completed=False,
+        )
+
+        return Response({"id": task.id}, status=201)
+
 
 class GetTaskView(RetrieveAPIView):
+    permission_classes = (IsAuthenticated,)
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
     lookup_field = "id"
 
 
 class DeleteTaskView(DestroyAPIView):
+    permission_classes = (IsAuthenticated,)
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
     lookup_field = "id"
 
 
-class CreateTaskView(CreateAPIView):
-    queryset = Task.objects.all()
-    serializer_class = TaskSerializer
-
-
 class AssignTaskView(CreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = (IsAuthenticated,)
     serializer_class = AssignTaskSerializer
 
     def create(self, request, *args, **kwargs):
@@ -102,7 +118,7 @@ class AssignTaskView(CreateAPIView):
 
 
 class CompleteTaskView(CreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = (IsAuthenticated,)
     serializer_class = EmptySerializer
 
     def create(self, request, *args, **kwargs):
@@ -128,6 +144,7 @@ class CompleteTaskView(CreateAPIView):
 
 
 class GetAllTaskCommentsView(ListAPIView):
+    permission_classes = (IsAuthenticated,)
     serializer_class = CommentSerializer
 
     def get_queryset(self):
@@ -137,7 +154,7 @@ class GetAllTaskCommentsView(ListAPIView):
 
 
 class PostCommentTaskView(CreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = (IsAuthenticated,)
     serializer_class = CommentTaskSerializer
 
     def create(self, request, *args, **kwargs):
@@ -173,9 +190,10 @@ class PostCommentTaskView(CreateAPIView):
         )
     ],
     responses=TaskSerializer(many=True),
-    tags=["Tasks"],
+    tags=["tasks"],
 )
 class TaskSearchView(ListAPIView):
+    permission_classes = (IsAuthenticated,)
     serializer_class = TaskSerializer
 
     def get_queryset(self):
