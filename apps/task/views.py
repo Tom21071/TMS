@@ -17,7 +17,6 @@ from apps.task.serializers import (
     TaskSerializer,
     AssignTaskSerializer,
     CommentSerializer,
-    CommentTaskSerializer,
 )
 
 
@@ -155,7 +154,7 @@ class GetAllTaskCommentsView(ListAPIView):
 
 class PostCommentTaskView(CreateAPIView):
     permission_classes = (IsAuthenticated,)
-    serializer_class = CommentTaskSerializer
+    serializer_class = CommentSerializer
 
     def create(self, request, *args, **kwargs):
         task_id = self.kwargs.get("id")

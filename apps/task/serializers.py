@@ -14,9 +14,5 @@ class AssignTaskSerializer(serializers.Serializer):
     user_id = serializers.IntegerField()
 
 
-class CommentTaskSerializer(serializers.Serializer):
-    text = serializers.CharField()
-
-
 class CommentSerializer(serializers.Serializer):
     text = serializers.CharField()
