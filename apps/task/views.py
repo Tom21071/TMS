@@ -1,95 +1,133 @@
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
-from rest_framework.generics import GenericAPIView, ListAPIView
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from rest_framework.generics import (
+    ListAPIView,
+    RetrieveAPIView,
+    DestroyAPIView,
+    CreateAPIView,
+)
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.generics import get_object_or_404
-from rest_framework.status import HTTP_204_NO_CONTENT
-
+from apps.common.helpers import EmptySerializer
 from apps.task.models import Task, Comment
 from apps.task.serializers import (
     TaskSerializer,
-    TaskGetAllSerializer,
     AssignTaskSerializer,
-    CompleteTaskSerializer,
     CommentSerializer,
     CommentTaskSerializer,
 )
 
 
-class TasksView(GenericAPIView):
-    permission_classes = (IsAuthenticated,)
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="status",
+            description="Filter by Status",
+            required=False,
+            type=str,
+            enum=[choice[0] for choice in Task.Status.choices],
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name="user_id",
+            description="Filter by User ID",
+            required=False,
+            type=int,
+            location=OpenApiParameter.QUERY,
+        ),
+    ],
+    responses=TaskSerializer(many=True),
+    tags=["Tasks"],
+)
+class GetAllTasksView(ListAPIView):
+    serializer_class = TaskSerializer
 
-    def get_serializer_class(self):
-        if self.request.method == "GET":
-            return TaskGetAllSerializer
-        return TaskSerializer
+    def get_queryset(self):
+        queryset = Task.objects.all()
+        status = self.request.query_params.get("status")
+        user_id = self.request.query_params.get("user_id")
 
-    def get(self, request: Request) -> Response:
-        tasks = Task.objects.all()
-        serializer = self.get_serializer(tasks, many=True)
-        return Response(serializer.data)
+        if status is not None:
+            queryset = queryset.filter(status=status)
+        if user_id is not None:
+            queryset = queryset.filter(user__id=user_id)
 
-    def post(self, request: Request) -> Response:
+        return queryset
+
+
+class GetTaskView(RetrieveAPIView):
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+    lookup_field = "id"
+
+
+class DeleteTaskView(DestroyAPIView):
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+    lookup_field = "id"
+
+
+class CreateTaskView(CreateAPIView):
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+
+
+class AssignTaskView(CreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = AssignTaskSerializer
+
+    def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        task = serializer.save(user=request.user)  # optional: add user FK
-        return Response(self.get_serializer(task).data)
 
-
-class AssignTaskView(GenericAPIView):
-    permission_classes = (IsAuthenticated,)
-    serializer_class = AssignTaskSerializer  # used for input validation only
-
-    def post(self, request: Request, *args, **kwargs) -> Response:
-        # Validate input
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        task_id = serializer.validated_data["task_id"]
+        task_id = self.kwargs.get("id")
         user_id = serializer.validated_data["user_id"]
 
-        # Get objects
         task = get_object_or_404(Task, pk=task_id)
         user = get_object_or_404(User, pk=user_id)
 
-        # Update and save
         task.user = user
         task.save(update_fields=["user"])
 
         send_mail(
-            "smtp google",
-            "Hello from Django",
-            "ttomson979@gmail.com",
-            ["alexandr.arciuk@ebs-integrator.com"],
+            subject="New Task",
+            message=f"Task with id {task.id} is assigned to you",
+            from_email="ttomson979@gmail.com",
+            recipient_list=[user.email],
         )
 
-        # Use a proper serializer for output
-        return Response()
+        return Response(status=204)
 
 
-class CompleteTaskView(GenericAPIView):
-    permission_classes = (IsAuthenticated,)
-    serializer_class = CompleteTaskSerializer  # used for input validation only
+class CompleteTaskView(CreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = EmptySerializer
 
-    def post(self, request: Request, *args, **kwargs) -> Response:
-        # Validate input
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        task_id = serializer.validated_data["task_id"]
-
-        # Get objects
+    def create(self, request, *args, **kwargs):
+        task_id = self.kwargs.get("id")
         task = get_object_or_404(Task, pk=task_id)
-
-        # Update and save
         task.status = Task.Status.COMPLETED.value
         task.save(update_fields=["status"])
-        return Response()
+
+        commenters = set()
+        for c in task.comments.all():
+            if c.user and c.user.email:
+                commenters.add(c.user.email)
+
+        for email in commenters:
+            send_mail(
+                subject="Task that you commented on is completed",
+                message="The task you commented on has been marked as completed.",
+                from_email="ttomson979@gmail.com",
+                recipient_list=[email],
+            )
+
+        return Response(status=204)
 
 
-class TaskCommentsView(ListAPIView):
+class GetAllTaskCommentsView(ListAPIView):
     serializer_class = CommentSerializer
 
     def get_queryset(self):
@@ -98,52 +136,48 @@ class TaskCommentsView(ListAPIView):
         return task.comments.all()
 
 
-class CommentTaskView(GenericAPIView):
-    permission_classes = (IsAuthenticated,)
+class PostCommentTaskView(CreateAPIView):
+    permission_classes = [IsAuthenticated]
     serializer_class = CommentTaskSerializer
 
-    def post(self, request: Request, *args, **kwargs) -> Response:
+    def create(self, request, *args, **kwargs):
+        task_id = self.kwargs.get("id")
+        task = get_object_or_404(Task, pk=task_id)
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        task_id = serializer.validated_data["task"]
-        text = serializer.validated_data["text"]
+        comment = Comment.objects.create(
+            text=serializer.validated_data["text"], task=task, user=request.user
+        )
 
-        task = get_object_or_404(Task, pk=task_id)
+        if task.user and task.user.email:
+            send_mail(
+                subject="New Comment",
+                message=comment.text,
+                from_email="ttomson979@gmail.com",
+                recipient_list=[task.user.email],
+            )
 
-        comment = Comment.objects.create(text=text, task=task, user=request.user)
-
-        return Response({"id": comment.id}, status=201)
-
-
-class DeleteTaskView(GenericAPIView):
-    permission_classes = (IsAuthenticated,)
-
-    def delete(self, request: Request, id: int, *args, **kwargs) -> Response:
-        task = get_object_or_404(Task, pk=id)
-        task.delete()
-        return Response(status=HTTP_204_NO_CONTENT)
+        return Response({"id": comment.id, "text": comment.text}, status=201)
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="query",
+            required=False,
+            type=str,
+            location=OpenApiParameter.QUERY,
+            description="Search by query",
+        )
+    ],
+    responses=TaskSerializer(many=True),
+    tags=["Tasks"],
+)
 class TaskSearchView(ListAPIView):
     serializer_class = TaskSerializer
 
     def get_queryset(self):
-        search_term = self.request.query_params.get("search", "")
+        search_term = self.request.query_params.get("query", "")
         return Task.objects.filter(title__icontains=search_term)
-
-
-class TaskView(GenericAPIView):
-    permission_classes = (IsAuthenticated,)
-    serializer_class = TaskGetAllSerializer  # FIXED
-
-    def get(
-        self, request: Request, task_id: int, user_id: int, *args, **kwargs
-    ) -> Response:
-        task = get_object_or_404(Task, pk=task_id)
-        user = get_object_or_404(User, pk=user_id)
-
-        task.user = user
-        task.save(update_fields=["user"])
-
-        return Response(self.get_serializer(task).data)
