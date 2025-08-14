@@ -14,9 +14,7 @@ class Task(models.Model):
 
     title = models.CharField(max_length=255)
     description = models.TextField()
-    status = models.CharField(
-        max_length=20, choices=Status.choices, default=Status.OPEN
-    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tasks")
     is_completed = models.BooleanField(default=False)
 
@@ -25,3 +23,10 @@ class Comment(models.Model):
     text = models.TextField()
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="comments")
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="comments")
+
+
+class TimeLog(models.Model):
+    date = models.DateTimeField()
+    duration = models.IntegerField(null=True, blank=True)
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="time_logs")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="time_logs")

@@ -4,11 +4,17 @@ from apps.task.views import (
     AssignTaskView,
     CompleteTaskView,
     DeleteTaskView,
-    PostCommentTaskView,
+    EndTimerForTaskView,
     GetAllTaskCommentsView,
-    TaskSearchView,
+    GetAllTaskTimeLogsView,
+    GetLastMonthTimeSumView,
     GetTaskView,
+    GetTopTasksByTimeView,
+    PostCommentTaskView,
+    PostTimeLogView,
+    StartTimerForTaskView,
     TaskListCreateView,
+    TaskSearchView,
 )
 
 urlpatterns = [
@@ -24,4 +30,14 @@ urlpatterns = [
         name="tasks-comments",
     ),
     path("tasks/search", TaskSearchView.as_view(), name="tasks-search"),
+    path("timelog/<int:id>/start", StartTimerForTaskView.as_view(), name="task-start"),
+    path("timelog/<int:id>/finish", EndTimerForTaskView.as_view(), name="task-finish"),
+    path(
+        "tasks/<int:id>/timelogs",
+        GetAllTaskTimeLogsView.as_view(),
+        name="task-time-logs",
+    ),
+    path("tasks/<int:id>/log-time", PostTimeLogView.as_view(), name="tasks-log-time"),
+    path("tasks/prev-month-time", GetLastMonthTimeSumView.as_view(), name="time-last-month"),
+    path("tasks/top-by-logged-time/<int:amount>", GetTopTasksByTimeView.as_view(), name="time-top"),
 ]
