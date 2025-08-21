@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 
 from django.contrib.auth.models import User
@@ -13,18 +14,21 @@ from rest_framework.generics import (
     RetrieveDestroyAPIView,
     get_object_or_404,
 )
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.task.models import Comment, Task, TimeLog
+from apps.task.models import Attachment, Comment, Task, TimeLog
 from apps.task.serializers import (
     AssignTaskSerializer,
+    AttachmentSerializer,
     CommentSerializer,
     EmptySerializer,
     TaskSerializer,
     TimeLogSerializer,
 )
+from utils.minio_service import generate_presigned_url
 
 
 @extend_schema_view(
@@ -301,3 +305,48 @@ class GetTopTasksByTimeView(ListAPIView):
         data = serializer.data
         cache.set(cache_key, data, timeout=60)
         return Response(data)
+
+
+class TaskAttachmentsView(APIView):
+    permission_classes = (IsAuthenticated,)
+    parser_classes = (MultiPartParser, FormParser)
+
+    def get(self, request, task_id):
+        task = get_object_or_404(Task, pk=task_id)
+        qs = task.attachments.order_by("-uploaded_at")
+        return Response(AttachmentSerializer(qs, many=True).data)
+
+
+class GenerateUploadURLView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, task_id, file_name):
+        task = get_object_or_404(Task, pk=task_id)
+
+        object_key = f"{request.user.id}/{task.id}/{uuid.uuid4()}_{file_name}"
+        url = generate_presigned_url("django-backend-dev-public", object_key)
+
+        attachment = Attachment.objects.create(
+            task=task,
+            user=request.user,
+            file_name=file_name,
+            object_key=object_key,
+        )
+
+        return Response(
+            {
+                "upload_url": url,
+                "file_id": attachment.id,
+                "task_id": task.id,
+            }
+        )
+
+
+class AttachmentConfirmView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, task_id):
+        task = get_object_or_404(Task, pk=task_id)
+        key = request.data["object_key"]
+        attachment = task.attachments.create(file=key)
+        return Response(AttachmentSerializer(attachment).data)

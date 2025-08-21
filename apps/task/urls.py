@@ -4,6 +4,7 @@ from apps.task.views import (
     AssignTaskView,
     CompleteTaskView,
     EndTimerForTaskView,
+    GenerateUploadURLView,
     GetAllTaskCommentsView,
     GetAllTaskTimeLogsView,
     GetLastMonthTimeSumView,
@@ -12,6 +13,7 @@ from apps.task.views import (
     PostCommentTaskView,
     PostTimeLogView,
     StartTimerForTaskView,
+    TaskAttachmentsView,
     TaskListCreateView,
     TaskSearchView,
 )
@@ -41,5 +43,9 @@ urlpatterns = [
         "tasks/top-by-logged-time/<int:amount>",
         GetTopTasksByTimeView.as_view(),
         name="time-top",
+    ),
+    path("tasks/<int:task_id>/attachments", TaskAttachmentsView.as_view(), name="task-attachments"),
+    path(
+        "tasks/<int:task_id>/presigned-url/<str:file_name>", GenerateUploadURLView.as_view(), name="task-presigned-url"
     ),
 ]

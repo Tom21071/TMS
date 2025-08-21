@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.task.models import Task, TimeLog
+from apps.task.models import Attachment, Task, TimeLog
 
 
 class EmptySerializer:
@@ -32,3 +32,9 @@ class TimeLogSerializer(serializers.ModelSerializer):
         model = TimeLog
         fields = ("id", "duration", "date", "user_id")
         read_only_fields = ("id", "user_id")
+
+
+class AttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attachment
+        fields = ["id", "file_name", "uploaded_at"]
