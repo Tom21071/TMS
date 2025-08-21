@@ -1,7 +1,8 @@
 services:
   web:
-    build: .
-    container_name: django_app
+    build:
+      context: .
+      dockerfile: Dockerfile.multi-stage
     volumes:
       - .:/app
     ports:
