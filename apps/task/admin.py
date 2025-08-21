@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from apps.task.models import Task
+from apps.task.models import Task, TimeLog
 
 
 class TaskAdmin(admin.ModelAdmin):
@@ -9,4 +9,5 @@ class TaskAdmin(admin.ModelAdmin):
     search_fields = ("title", "description")
 
 
+admin.site.register(TimeLog)
 admin.site.register(Task, TaskAdmin)
