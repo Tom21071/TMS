@@ -1,27 +1,27 @@
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.mail import send_mail
 from django.db.models import Sum
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework.generics import (
     CreateAPIView,
-    DestroyAPIView,
     ListAPIView,
     ListCreateAPIView,
-    RetrieveAPIView,
+    RetrieveDestroyAPIView,
     get_object_or_404,
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.common.helpers import EmptySerializer
 from apps.task.models import Comment, Task, TimeLog
 from apps.task.serializers import (
     AssignTaskSerializer,
     CommentSerializer,
+    EmptySerializer,
     TaskSerializer,
     TimeLogSerializer,
 )
@@ -82,7 +82,7 @@ class TaskListCreateView(ListCreateAPIView):
         return Response({"id": task.id}, status=201)
 
 
-class GetTaskView(RetrieveAPIView):
+class GetTaskView(RetrieveDestroyAPIView):
     permission_classes = (IsAuthenticated,)
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
@@ -103,13 +103,6 @@ class GetLastMonthTimeSumView(APIView):
             or 0
         )
         return Response({"sum": total_minutes})
-
-
-class DeleteTaskView(DestroyAPIView):
-    permission_classes = (IsAuthenticated,)
-    queryset = Task.objects.all()
-    serializer_class = TaskSerializer
-    lookup_field = "id"
 
 
 class AssignTaskView(CreateAPIView):
@@ -291,6 +284,20 @@ class GetTopTasksByTimeView(ListAPIView):
     permission_classes = (IsAuthenticated,)
     serializer_class = TaskSerializer
 
-    def get_queryset(self):
+    def get(self, request, *args, **kwargs):
         amount = self.kwargs.get("amount")
-        return Task.objects.annotate(sum=Sum("time_logs__duration")).order_by("-sum")[:amount]
+
+        cache_key = f"top_tasks_{amount}"
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return Response(cached_data)
+
+        qs = (
+            Task.objects.annotate(total_duration=Sum("time_logs__duration"))
+            .filter(total_duration__gt=0)
+            .order_by("-total_duration")[:amount]
+        )
+        serializer = self.get_serializer(qs, many=True)
+        data = serializer.data
+        cache.set(cache_key, data, timeout=60)
+        return Response(data)

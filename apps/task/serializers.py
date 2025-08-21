@@ -3,6 +3,10 @@ from rest_framework import serializers
 from apps.task.models import Task, TimeLog
 
 
+class EmptySerializer:
+    pass
+
+
 class TaskSerializer(serializers.ModelSerializer):
     sum = serializers.SerializerMethodField()
 
