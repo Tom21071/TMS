@@ -1,4 +1,9 @@
+import os
+from datetime import timedelta
 from pathlib import Path
+
+import certifi
+import urllib3
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,14 +24,54 @@ INSTALLED_APPS = [
     # Third party apps
     "rest_framework",
     "rest_framework.authtoken",
-    "corsheaders",
     "drf_spectacular",
+    "django_minio_backend.apps.DjangoMinioBackendConfig",
     # Local apps
-    "apps.common",
     "apps.users",
     "apps.task",
 ]
 
+MINIO_CONSISTENCY_CHECK_ON_START = True
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django_minio_backend.models.MinioBackend",
+    },
+    "staticfiles": {  # -- OPTIONAL
+        "BACKEND": "django_minio_backend.models.MinioBackendStatic",
+    },
+}
+
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
+MINIO_ACCESS_KEY = "minioadmin"
+MINIO_SECRET_KEY = "minioadmin"
+MINIO_USE_HTTPS = False
+MINIO_USE_SSL = False
+MINIO_URL_EXPIRY_HOURS = timedelta(days=1)  # Default is 7 days (longest) if not defined
+MINIO_CONSISTENCY_CHECK_ON_START = True
+MINIO_PRIVATE_BUCKETS = [
+    "django-backend-dev-private",
+]
+MINIO_PUBLIC_BUCKETS = [
+    "django-backend-dev-public",
+]
+MINIO_POLICY_HOOKS: list[tuple[str, dict]] = []
+# MINIO_MEDIA_FILES_BUCKET = 'my-media-files-bucket'  # replacement for MEDIA_ROOT
+# MINIO_STATIC_FILES_BUCKET = 'my-static-files-bucket'  # replacement for STATIC_ROOT
+MINIO_BUCKET_CHECK_ON_SAVE = True  # Default: True // Creates bucket if missing, then save
+
+# Custom HTTP Client (OPTIONAL)
+
+
+timeout = timedelta(minutes=5).seconds
+ca_certs = os.environ.get("SSL_CERT_FILE") or certifi.where()
+MINIO_HTTP_CLIENT: urllib3.poolmanager.PoolManager = urllib3.PoolManager(
+    timeout=urllib3.util.Timeout(connect=timeout, read=timeout),
+    maxsize=10,
+    cert_reqs="CERT_REQUIRED",
+    ca_certs=ca_certs,
+    retries=urllib3.Retry(total=5, backoff_factor=0.2, status_forcelist=[500, 502, 503, 504]),
+)
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -58,10 +103,18 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASES = {
-    "default": {
+    "sqlite3": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
-    }
+    },
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "postgres",
+        "USER": "postgres",
+        "PASSWORD": "postgres",
+        "HOST": os.getenv("POSTGRES_HOST"),
+        "PORT": "5432",
+    },
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -124,3 +177,15 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": True,
 }
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": os.getenv("REDIS_URL"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
+DJANGO_REDIS_IGNORE_EXCEPTIONS = False
+CACHE_TTL = 60
