@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Run Ruff on host (fast, no need for Docker)
+      # Run Ruff outside Docker for speed
       - name: Install Ruff
         run: |
           python -m pip install --upgrade pip
@@ -31,12 +31,19 @@ jobs:
       - name: Build and start containers
         run: docker compose up -d --build
 
-      # (Optional) Wait a bit for DB to be ready
+      - name: Show running containers
+        run: docker compose ps
+
       - name: Wait for DB
         run: |
           echo "Waiting for database..."
-          sleep 10
+          sleep 60
 
-      # Run tests inside your django container
+      # Run tests inside the `web` service (not "django")
       - name: Run Django tests
-        run: docker compose exec -T django pytest
+        run: docker compose exec -T web pytest
+
+      # Show logs if something fails (for easier debugging)
+      - name: Show container logs
+        if: failure()
+        run: docker compose logs
