@@ -37,6 +37,6 @@ jobs:
           echo "Waiting for database..."
           sleep 10
 
-      # Run tests inside your web container
+      # Run tests inside your django container
       - name: Run Django tests
-        run: docker compose exec -T web pytest
+        run: docker compose exec -T django pytest
