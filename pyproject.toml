@@ -24,6 +24,10 @@ ignore = [
     "ISC001", # Disabled to avoid unexpected behaviour on `ruff format .`
 ]
 
+exclude = [
+    "*/migrations/*",
+]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"

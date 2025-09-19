@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+  <body style="font-family:system-ui,Arial">
+    <h2>Hi {{ user.get_full_name|default:user.username }},</h2>
+    <p>Top 20 tasks by time spent between {{ since|date:"Y-m-d" }} and {{ until|date:"Y-m-d" }}.</p>
+    <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse:collapse">
+      <thead>
+        <tr>
+          <th align="left" style="border-bottom:1px solid #ddd">#</th>
+          <th align="left" style="border-bottom:1px solid #ddd">Task</th>
+          <th align="right" style="border-bottom:1px solid #ddd">Minutes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in items %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ row.task__title }}</td>
+          <td align="right">{{ row.total|default:0 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p style="color:#888">Generated {{ until|date:"Y-m-d H:i" }}.</p>
+  </body>
+</html>

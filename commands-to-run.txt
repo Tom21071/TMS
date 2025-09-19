@@ -1,0 +1,2 @@
+1. python manage.py seed_data (seed 25 000 tasks and 50 000 time logs)
+2. celery -A config worker -l info & celery -A config beat -l info (run celery worker and beat)

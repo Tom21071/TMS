@@ -2,13 +2,21 @@ from django.urls import path
 
 from apps.task.views import (
     AssignTaskView,
+    CommentSearchView,
     CompleteTaskView,
-    DeleteTaskView,
-    PostCommentTaskView,
+    EndTimerForTaskView,
+    GenerateUploadURLView,
     GetAllTaskCommentsView,
-    TaskSearchView,
+    GetAllTaskTimeLogsView,
+    GetLastMonthTimeSumView,
     GetTaskView,
+    GetTopTasksByTimeView,
+    PostCommentTaskView,
+    PostTimeLogView,
+    StartTimerForTaskView,
+    TaskAttachmentsView,
     TaskListCreateView,
+    TaskSearchView,
 )
 
 urlpatterns = [
@@ -16,12 +24,22 @@ urlpatterns = [
     path("tasks/<int:id>", GetTaskView.as_view(), name="tasks-get-by-id"),
     path("tasks/<int:id>/assign", AssignTaskView.as_view(), name="tasks-assign"),
     path("tasks/<int:id>/complete", CompleteTaskView.as_view(), name="tasks-complete"),
-    path("tasks/<int:id>", DeleteTaskView.as_view(), name="delete-task"),
     path("tasks/<int:id>/comment", PostCommentTaskView.as_view(), name="tasks-comment"),
+    path("tasks/<int:id>/comments", GetAllTaskCommentsView.as_view(), name="tasks-comments"),
+    path("tasks/timelog/<int:id>/finish", EndTimerForTaskView.as_view(), name="task-finish"),
+    path("tasks/timelog/<int:id>/start", StartTimerForTaskView.as_view(), name="task-start"),
+    path("tasks/<int:id>/timelogs", GetAllTaskTimeLogsView.as_view(), name="task-time-logs"),
+    path("tasks/<int:id>/log-time", PostTimeLogView.as_view(), name="tasks-log-time"),
+    path("tasks/prev-month-time", GetLastMonthTimeSumView.as_view(), name="time-last-month"),
     path(
-        "tasks/<int:id>/comments",
-        GetAllTaskCommentsView.as_view(),
-        name="tasks-comments",
+        "tasks/top-by-logged-time/<int:amount>",
+        GetTopTasksByTimeView.as_view(),
+        name="time-top",
     ),
-    path("tasks/search", TaskSearchView.as_view(), name="tasks-search"),
+    path("tasks/<int:task_id>/attachments", TaskAttachmentsView.as_view(), name="task-attachments"),
+    path(
+        "tasks/<int:task_id>/presigned-url/<str:file_name>", GenerateUploadURLView.as_view(), name="task-presigned-url"
+    ),
+    path("elastic/tasks/search", TaskSearchView.as_view()),
+    path("elastic/comments/search", CommentSearchView.as_view()),
 ]
