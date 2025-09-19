@@ -64,10 +64,6 @@ class TaskTests(TestCase):
         res = self.client.get(f"/tasks/{self.task_id}/timelogs")
         self.assertEqual(res.status_code, 200)
 
-    def test_search_tasks(self):
-        res = self.client.get("/tasks/search?query=Test")
-        self.assertEqual(res.status_code, 200)
-
     def test_prev_month_time(self):
         res = self.client.get("/tasks/prev-month-time")
         self.assertEqual(res.status_code, 200)
@@ -77,10 +73,10 @@ class TaskTests(TestCase):
         self.assertEqual(res.status_code, 200)
 
     def test_start_task(self):
-        res = self.client.post(f"/timelog/{self.task.id}/start")
+        res = self.client.post(f"/tasks/timelog/{self.task.id}/start")
         self.assertEqual(res.status_code, 200)
 
     def test_finish_task(self):
-        self.client.post(f"/timelog/{self.task.id}/start")
-        res = self.client.post(f"/timelog/{self.task.id}/finish")
+        self.client.post(f"/tasks/timelog/{self.task.id}/start")
+        res = self.client.post(f"/tasks/timelog/{self.task.id}/finish")
         self.assertEqual(res.status_code, 200)

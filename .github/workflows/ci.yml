@@ -36,10 +36,10 @@ jobs:
       - name: Wait for DB
         run: |
           echo "Waiting for database..."
-          sleep 60
+          sleep 10  # можно меньше, если не используешь Postgres в тестах
 
       - name: Run Django tests
-        run: docker compose exec -T web pytest
+        run: docker compose exec -e DJANGO_SETTINGS_MODULE=config.settings_test -T web python manage.py test --verbosity 2
 
       - name: Show container logs
         if: failure()
