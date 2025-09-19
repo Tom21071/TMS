@@ -38,9 +38,9 @@ class Attachment(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="attachments", null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="attachments", null=True)
 
-    file_name = models.CharField(max_length=255, null=True, blank=True)  # original filename
-    object_key = models.CharField(max_length=500, null=True, blank=True)  # path in MinIO
-
+    file_name = models.CharField(max_length=255, null=True, blank=True)
+    object_key = models.CharField(max_length=500, null=True, blank=True)
+    is_uploaded = models.BooleanField(default=False)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     @property

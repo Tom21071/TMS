@@ -1,5 +1,6 @@
 services:
   web:
+    container_name: django
     build:
       context: .
       dockerfile: Dockerfile.multi-stage
@@ -19,6 +20,7 @@ services:
       - POSTGRES_PORT=5432
       - REDIS_URL=redis://redis:6379/0
       - MINIO_ENDPOINT=minio:9000
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
   db: # PostgreSQL
     image: postgres:15
     container_name: django_db
@@ -46,9 +48,24 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_NOTIFY_WEBHOOK_ENABLE: "on"
+      MINIO_NOTIFY_WEBHOOK_ENDPOINT: "http://django:8000/api/files/webhook"
+      MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN: "Bearer Fs46gG"
     command: server /data --console-address ":9001"
     volumes:
       - ./minio-data:/data
+
+  elasticsearch: # elastic
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false  # disable auth for local dev
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
 
   redis-commander: # Redis UI
     image: rediscommander/redis-commander:latest
@@ -63,3 +80,4 @@ services:
 
 volumes:
   postgres_data:
+  es-data:

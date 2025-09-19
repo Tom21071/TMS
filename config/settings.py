@@ -4,6 +4,7 @@ from pathlib import Path
 
 import certifi
 import urllib3
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,8 +30,26 @@ INSTALLED_APPS = [
     # Local apps
     "apps.users",
     "apps.task",
+    "django_celery_results",
+    "django.contrib.sites",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.github",
 ]
 
+CELERY_BROKER_URL = os.getenv("REDIS_URL")
+CELERY_RESULT_BACKEND = "django-db"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = "UTC"
+CELERY_BEAT_SCHEDULE = {
+    "email-weekly-top20-report": {
+        "task": "notifications.tasks.send_weekly_top20_reports",
+        "schedule": crontab(minute="*"),
+    }
+}
 MINIO_CONSISTENCY_CHECK_ON_START = True
 
 STORAGES = {
@@ -60,8 +79,9 @@ MINIO_POLICY_HOOKS: list[tuple[str, dict]] = []
 # MINIO_STATIC_FILES_BUCKET = 'my-static-files-bucket'  # replacement for STATIC_ROOT
 MINIO_BUCKET_CHECK_ON_SAVE = True  # Default: True // Creates bucket if missing, then save
 
+MINIO_WEBHOOK_TOKEN = "Fs46gG"
+ALLOWED_HOSTS = ["*"]
 # Custom HTTP Client (OPTIONAL)
-
 
 timeout = timedelta(minutes=5).seconds
 ca_certs = os.environ.get("SSL_CERT_FILE") or certifi.where()
@@ -78,20 +98,38 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
 ]
+
+SITE_ID = 1
+LOGIN_REDIRECT_URL = "/api/auth/github/callback"
+
+SOCIAL_AUTH_GITHUB_KEY = "Ov23lid6bSPW9eynAt8V"
+SOCIAL_AUTH_GITHUB_SECRET = "2a2b337ddaaf7fc06d88ac920657ef786623363f"
+
+SOCIALACCOUNT_PROVIDERS = {
+    "github": {
+        "APP": {
+            "client_id": "Ov23lid6bSPW9eynAt8V",
+            "secret": "2a2b337ddaaf7fc06d88ac920657ef786623363f",
+            "key": "",
+        }
+    }
+}
 
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
+                "django.template.context_processors.debug",
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
@@ -140,11 +178,8 @@ REST_FRAMEWORK = {
 }
 
 LANGUAGE_CODE = "en-us"
-
 TIME_ZONE = "UTC"
-
 USE_I18N = True
-
 USE_TZ = True
 
 # EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
@@ -161,13 +196,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = "ttomson979@gmail.com"
 EMAIL_HOST_PASSWORD = "jsfejipbuyyaipnx"
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
 STATIC_URL = "static/"
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -177,6 +206,7 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": True,
 }
+ELASTICSEARCH_URL = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
 
 CACHES = {
     "default": {
@@ -187,5 +217,6 @@ CACHES = {
         },
     }
 }
+
 DJANGO_REDIS_IGNORE_EXCEPTIONS = False
 CACHE_TTL = 60

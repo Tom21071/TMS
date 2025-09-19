@@ -33,9 +33,7 @@ class Command(BaseCommand):
         Task.objects.bulk_create(tasks, batch_size=1000)
         self.stdout.write(self.style.SUCCESS("25,000 tasks created."))
 
-        # Refresh tasks from DB to get their IDs
         all_tasks = list(Task.objects.all())
-
         self.stdout.write("Generating 50,000 time logs...")
 
         time_logs = []
@@ -46,7 +44,7 @@ class Command(BaseCommand):
                 task=random.choice(all_tasks),
                 user=random.choice(users),
                 duration=random.randint(1, 100),
-                date=now - timedelta(days=random.randint(0, 100)),  # Random past year
+                date=now - timedelta(days=random.randint(0, 100)),
             )
             time_logs.append(time_log)
 

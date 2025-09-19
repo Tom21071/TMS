@@ -1,10 +1,13 @@
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.http import JsonResponse
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.serializers import (
     LoginUserSerializer,
@@ -69,3 +72,17 @@ class LoginUserView(GenericAPIView):
         token_serializer.is_valid(raise_exception=True)
 
         return Response(token_serializer.validated_data)
+
+
+@login_required
+def github_callback(request):
+    user = request.user
+    refresh = RefreshToken.for_user(user)
+    access = refresh.access_token
+
+    return JsonResponse(
+        {
+            "access": str(access),
+            "refresh": str(refresh),
+        }
+    )

@@ -1,12 +1,17 @@
+import json
+import urllib
 import uuid
 from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from django.core.mail import send_mail
 from django.db.models import Sum
+from django.http import JsonResponse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from elasticsearch_dsl import Q, Search
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.generics import (
     CreateAPIView,
     ListAPIView,
@@ -15,7 +20,7 @@ from rest_framework.generics import (
     get_object_or_404,
 )
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -28,6 +33,8 @@ from apps.task.serializers import (
     TaskSerializer,
     TimeLogSerializer,
 )
+from config import settings
+from notifications.tasks import send_email_async
 from utils.minio_service import generate_presigned_url
 
 
@@ -126,13 +133,12 @@ class AssignTaskView(CreateAPIView):
         task.user = user
         task.save(update_fields=["user"])
 
-        send_mail(
+        send_email_async.delay(
             subject="New Task",
             message=f"Task with id {task.id} is assigned to you",
+            recipients=[user.email],
             from_email="ttomson979@gmail.com",
-            recipient_list=[user.email],
         )
-
         return Response(status=204)
 
 
@@ -152,11 +158,11 @@ class CompleteTaskView(CreateAPIView):
                 commenters.add(c.user.email)
 
         for email in commenters:
-            send_mail(
+            send_email_async.delay(
                 subject="Task that you commented on is completed",
                 message="The task you commented on has been marked as completed.",
+                recipients=[email],
                 from_email="ttomson979@gmail.com",
-                recipient_list=[email],
             )
 
         return Response(status=204)
@@ -186,36 +192,14 @@ class PostCommentTaskView(CreateAPIView):
         comment = Comment.objects.create(text=serializer.validated_data["text"], task=task, user=request.user)
 
         if task.user and task.user.email:
-            send_mail(
+            send_email_async.delay(
                 subject="New Comment",
                 message=comment.text,
+                recipients=[task.user.email],
                 from_email="ttomson979@gmail.com",
-                recipient_list=[task.user.email],
             )
 
         return Response({"id": comment.id, "text": comment.text}, status=201)
-
-
-@extend_schema(
-    parameters=[
-        OpenApiParameter(
-            name="query",
-            required=False,
-            type=str,
-            location=OpenApiParameter.QUERY,
-            description="Search by query",
-        )
-    ],
-    responses=TaskSerializer(many=True),
-    tags=["tasks"],
-)
-class TaskSearchView(ListAPIView):
-    permission_classes = (IsAuthenticated,)
-    serializer_class = TaskSerializer
-
-    def get_queryset(self):
-        search_term = self.request.query_params.get("query", "")
-        return Task.objects.filter(title__icontains=search_term)
 
 
 class StartTimerForTaskView(CreateAPIView):
@@ -331,6 +315,7 @@ class GenerateUploadURLView(APIView):
             user=request.user,
             file_name=file_name,
             object_key=object_key,
+            isUploaded=False,
         )
 
         return Response(
@@ -342,6 +327,29 @@ class GenerateUploadURLView(APIView):
         )
 
 
+@extend_schema(parameters=[OpenApiParameter(name="q", type=str, description="Search query string", required=False)])
+class TaskSearchView(APIView):
+    def get(self, request):
+        q = request.GET.get("q")
+        s = Search(index="tasks")
+        if q:
+            s = s.query("multi_match", query=q, fields=["title", "description"])
+        return Response([hit.to_dict() | {"id": hit.meta.id} for hit in s.execute()])
+
+
+@extend_schema(parameters=[OpenApiParameter(name="q", type=str, description="Search query string", required=False)])
+class CommentSearchView(APIView):
+    def get(self, request):
+        q = request.GET.get("q")
+        s = Search(index="comments")
+        if q:
+            s = s.query(
+                Q("multi_match", query=q, fields=["content", "text"], fuzziness="AUTO")
+                | Q("wildcard", content={"value": f"*{q.lower()}*"})
+            )
+        return Response([hit.to_dict() | {"id": hit.meta.id} for hit in s.execute()])
+
+
 class AttachmentConfirmView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -350,3 +358,26 @@ class AttachmentConfirmView(APIView):
         key = request.data["object_key"]
         attachment = task.attachments.create(file=key)
         return Response(AttachmentSerializer(attachment).data)
+
+
+@csrf_exempt
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def minio_webhook(request):
+    auth_header = request.headers.get("Authorization")
+    expected = f"Bearer {settings.MINIO_WEBHOOK_TOKEN}"
+    print(auth_header)
+    print(expected)
+
+    if auth_header != expected:
+        return JsonResponse({"error": "Unauthorized"}, status=401)
+
+    payload = json.loads(request.body)
+    for record in payload.get("Records", []):
+        key = record["s3"]["object"]["key"]
+        key = urllib.parse.unquote(key)
+        print(key)
+        Attachment.objects.filter(object_key=key).update(isUploaded=True)
+
+    return JsonResponse({"status": "ok"})

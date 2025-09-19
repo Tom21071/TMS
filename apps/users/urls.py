@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from apps.users.views import GetAllUsersView, LoginUserView, RegisterUserView
+from apps.users.views import GetAllUsersView, LoginUserView, RegisterUserView, github_callback
 
 urlpatterns = [
     path("users", GetAllUsersView.as_view(), name="get_all_users"),
@@ -9,4 +9,5 @@ urlpatterns = [
     path("users/login", LoginUserView.as_view(), name="token_login"),
     path("users/token", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("users/token/refresh", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/auth/github/callback", github_callback, name="github_callback"),
 ]
